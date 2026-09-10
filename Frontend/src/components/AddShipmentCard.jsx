@@ -53,8 +53,8 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
     pickupDate: todayStr,
     deliveryDate: tomorrowStr,
     warehouseName: '',
-    boxes: 10,
-    units: 300,
+    boxes: '',
+    units: '',
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -99,8 +99,8 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
         pickupDate: todayStr,
         deliveryDate: tomorrowStr,
         warehouseName: '',
-        boxes: 10,
-        units: 300,
+        boxes: '',
+        units: '',
       });
       onClose();
     }
@@ -258,6 +258,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
               name="boxes"
               min="0"
               required
+              placeholder="0"
               value={formData.boxes}
               onChange={handleChange}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-slate-900 focus:outline-none focus:border-[#ff6b35] focus:bg-white transition-all"
@@ -274,6 +275,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
               name="units"
               min="0"
               required
+              placeholder="0"
               value={formData.units}
               onChange={handleChange}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold text-emerald-700 focus:outline-none focus:border-[#ff6b35] focus:bg-white transition-all"

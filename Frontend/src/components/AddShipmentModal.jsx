@@ -30,8 +30,8 @@ const AddShipmentModal = ({ isOpen, onClose, onAddShipment }) => {
     pickupDate: todayStr,
     deliveryDate: tomorrowStr,
     warehouseName: '',
-    boxes: 10,
-    units: 300,
+    boxes: '',
+    units: '',
     notes: '',
   });
 
@@ -77,8 +77,8 @@ const AddShipmentModal = ({ isOpen, onClose, onAddShipment }) => {
         pickupDate: todayStr,
         deliveryDate: tomorrowStr,
         warehouseName: '',
-        boxes: 10,
-        units: 300,
+        boxes: '',
+        units: '',
         notes: '',
       });
       onClose();
