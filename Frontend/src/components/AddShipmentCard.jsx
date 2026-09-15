@@ -51,6 +51,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
     company: 'Amazon',
     status: 'Packing',
     waybillNo: '',
+    remarks: '',
     pickupDate: todayStr,
     deliveryDate: tomorrowStr,
     warehouseName: '',
@@ -93,17 +94,22 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
       ? formData.invoiceNo.trim()
       : null;
 
+    const cleanRemarks = (formData.remarks && formData.remarks.trim())
+      ? formData.remarks.trim()
+      : '';
+
     const success = await onAddShipment({
       ...formData,
       roPo: cleanRoPo,
       invoiceNo: cleanInvoice,
       warehouseName: cleanWarehouse,
       waybillNo: cleanWaybill,
+      remarks: cleanRemarks,
       pickupDate: formData.pickupDate || todayStr,
       deliveryDate: formData.deliveryDate || tomorrowStr,
       boxes: Number(formData.boxes) || 0,
       units: Number(formData.units) || 0,
-      notes: '',
+      notes: cleanRemarks,
     });
 
     setIsSubmitting(false);
@@ -114,6 +120,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
         company: 'Amazon',
         status: 'Packing',
         waybillNo: '',
+        remarks: '',
         pickupDate: todayStr,
         deliveryDate: tomorrowStr,
         warehouseName: '',
@@ -210,6 +217,8 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
               <option value="Packing">Packing</option>
               <option value="Picked Up">Picked Up</option>
               <option value="Delivered">Delivered</option>
+              <option value="Partial">Partial</option>
+              <option value="SideLine">SideLine</option>
             </select>
           </div>
 
@@ -311,7 +320,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
           </div>
 
           {/* 9. Warehouse Name */}
-          <div className="sm:col-span-2 lg:col-span-4">
+          <div className="sm:col-span-2 lg:col-span-2">
             <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
               Warehouse Name / Hub
             </label>
@@ -322,6 +331,21 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
               value={formData.warehouseName}
               onChange={handleChange}
               className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#ff6b35] focus:bg-white transition-all"
+            />
+          </div>
+
+          {/* 10. Remarks */}
+          <div className="sm:col-span-2 lg:col-span-2">
+            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
+              Remarks (Optional)
+            </label>
+            <input
+              type="text"
+              name="remarks"
+              placeholder="e.g. Delayed or partial shipment remarks..."
+              value={formData.remarks}
+              onChange={handleChange}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2 text-xs font-medium text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#ff6b35] focus:bg-white transition-all"
             />
           </div>
         </div>

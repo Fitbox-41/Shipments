@@ -147,6 +147,7 @@ router.get('/', async (req, res) => {
         { waybillNo: regex },
         { warehouseName: regex },
         { company: regex },
+        { remarks: regex },
         { notes: regex },
       ];
     }
@@ -215,6 +216,7 @@ router.post('/', async (req, res) => {
       warehouseName,
       boxes,
       units,
+      remarks,
       notes,
     } = req.body;
 
@@ -241,6 +243,8 @@ router.post('/', async (req, res) => {
       ? company
       : 'Other';
 
+    const cleanRemarks = remarks !== undefined ? remarks : (notes || '');
+
     const newShipment = new Shipment({
       roPo: cleanRoPo,
       company: cleanCompany,
@@ -252,7 +256,8 @@ router.post('/', async (req, res) => {
       warehouseName: cleanWarehouse,
       boxes: Number(boxes) || 0,
       units: Number(units) || 0,
-      notes: notes || '',
+      remarks: cleanRemarks,
+      notes: cleanRemarks,
       createdBy: req.user?.name || 'Admin',
     });
 
@@ -284,6 +289,7 @@ router.put('/:id', async (req, res) => {
       warehouseName,
       boxes,
       units,
+      remarks,
       notes,
       isPinned,
     } = req.body;
@@ -309,7 +315,13 @@ router.put('/:id', async (req, res) => {
     if (warehouseName !== undefined) shipment.warehouseName = warehouseName.trim();
     if (boxes !== undefined) shipment.boxes = Number(boxes);
     if (units !== undefined) shipment.units = Number(units);
-    if (notes !== undefined) shipment.notes = notes;
+    if (remarks !== undefined) {
+      shipment.remarks = remarks;
+      shipment.notes = remarks;
+    } else if (notes !== undefined) {
+      shipment.remarks = notes;
+      shipment.notes = notes;
+    }
     if (isPinned !== undefined) shipment.isPinned = isPinned;
 
     const updated = await shipment.save();
@@ -325,12 +337,12 @@ router.put('/:id', async (req, res) => {
 });
 
 // @route   PATCH /api/shipments/:id/status
-// @desc    Quick status change (Packing, Picked Up, Delivered)
+// @desc    Quick status change (Packing, Picked Up, Delivered, Partial, SideLine)
 // @access  Private
 router.patch('/:id/status', async (req, res) => {
   try {
     const { status } = req.body;
-    if (!['Packing', 'Picked Up', 'Delivered'].includes(status)) {
+    if (!['Packing', 'Picked Up', 'Delivered', 'Partial', 'SideLine'].includes(status)) {
       return res.status(400).json({ success: false, message: 'Invalid status value' });
     }
 

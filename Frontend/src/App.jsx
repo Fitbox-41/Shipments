@@ -247,9 +247,13 @@ const DashboardContent = () => {
       const term = searchTerm.toLowerCase();
       const match =
         (s.roPo && s.roPo.toLowerCase().includes(term)) ||
+        (s.invoiceNo && s.invoiceNo.toLowerCase().includes(term)) ||
+        (s.remarks && s.remarks.toLowerCase().includes(term)) ||
+        (s.notes && s.notes.toLowerCase().includes(term)) ||
         (s.waybillNo && s.waybillNo.toLowerCase().includes(term)) ||
         (s.warehouseName && s.warehouseName.toLowerCase().includes(term)) ||
-        (s.company && s.company.toLowerCase().includes(term));
+        (s.company && s.company.toLowerCase().includes(term)) ||
+        (s.status && s.status.toLowerCase().includes(term));
       if (!match) return false;
     }
 
@@ -409,7 +413,7 @@ const DashboardContent = () => {
                   Status
                 </span>
                 <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs gap-1">
-                  {['All', 'Packing', 'Picked Up', 'Delivered'].map((st) => (
+                  {['All', 'Packing', 'Picked Up', 'Delivered', 'Partial', 'SideLine'].map((st) => (
                     <button
                       key={st}
                       onClick={() => setSelectedStatus(st)}

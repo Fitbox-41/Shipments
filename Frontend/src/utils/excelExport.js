@@ -128,6 +128,7 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
     'Status',
     'Waybill / CN',
     'Invoice No',
+    'Remarks',
     'Pickup Date (DD/MM/YYYY)',
     'Delivery Date (DD/MM/YYYY)',
     'Delivery Priority / Tag',
@@ -205,6 +206,7 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
 
   // Process rows
   shipments.forEach((s) => {
+    const isToday = isDateToday(s.deliveryDate);
     const isTomorrow = isDateTomorrow(s.deliveryDate);
     if (isTomorrow) tomorrowCount++;
 
@@ -214,7 +216,7 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
     totalUnits += units;
 
     const rowStyle = isTomorrow ? tomorrowRowStyle : standardRowStyle;
-    const tagText = isTomorrow ? 'TOMORROW DELIVERY' : 'STANDARD';
+    const tagText = isToday ? 'TODAY DELIVERY' : isTomorrow ? 'TOMORROW DELIVERY' : 'STANDARD';
 
     const row = [
       { v: s.roPo || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
@@ -222,6 +224,7 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
       { v: s.status || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: s.waybillNo || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: s.invoiceNo || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
+      { v: s.remarks || s.notes || '', t: 's', s: rowStyle },
       { v: formatDateDDMMYYYY(s.pickupDate), t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: formatDateDDMMYYYY(s.deliveryDate), t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: tagText, t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
@@ -252,6 +255,8 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
     { v: '', t: 's', s: summaryStyle },
     { v: '', t: 's', s: summaryStyle },
     { v: '', t: 's', s: summaryStyle },
+    { v: '', t: 's', s: summaryStyle },
+    { v: '', t: 's', s: summaryStyle },
     { v: 'Total Volume:', t: 's', s: { ...summaryStyle, alignment: { horizontal: 'right' } } },
     { v: totalBoxes, t: 'n', s: { ...summaryStyle, alignment: { horizontal: 'right' } } },
     { v: totalUnits, t: 'n', s: { ...summaryStyle, alignment: { horizontal: 'right' } } },
@@ -267,6 +272,8 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
     { wch: 14 }, // Company
     { wch: 15 }, // Status
     { wch: 18 }, // Waybill / CN
+    { wch: 18 }, // Invoice No
+    { wch: 25 }, // Remarks
     { wch: 22 }, // Pickup Date (DD/MM/YYYY)
     { wch: 22 }, // Delivery Date (DD/MM/YYYY)
     { wch: 22 }, // Delivery Tag

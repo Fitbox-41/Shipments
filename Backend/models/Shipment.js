@@ -14,7 +14,7 @@ const shipmentSchema = new mongoose.Schema(
     },
     status: {
       type: String,
-      enum: ['Packing', 'Picked Up', 'Delivered'],
+      enum: ['Packing', 'Picked Up', 'Delivered', 'Partial', 'SideLine'],
       default: 'Packing',
     },
     waybillNo: {
@@ -49,6 +49,11 @@ const shipmentSchema = new mongoose.Schema(
       type: Number,
       min: [0, 'Units cannot be negative'],
       default: 0,
+    },
+    remarks: {
+      type: String,
+      trim: true,
+      default: '',
     },
     notes: {
       type: String,

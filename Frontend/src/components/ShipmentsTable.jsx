@@ -11,6 +11,8 @@ import {
   RotateCcw,
   Clock,
   History,
+  Boxes,
+  PauseCircle,
 } from 'lucide-react';
 import {
   isDateToday,
@@ -55,12 +57,14 @@ const CompanyBadge = ({ company, onChange }) => {
   );
 };
 
-// Status Button & Dropdown Component (without emojis)
+// Status Button & Dropdown Component with all 5 status options
 const StatusButton = ({ status, onStatusChange }) => {
   const statusConfig = {
     Packing: 'bg-amber-50 text-amber-800 border-amber-300 hover:bg-amber-100',
     'Picked Up': 'bg-blue-50 text-blue-800 border-blue-300 hover:bg-blue-100',
     Delivered: 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100',
+    Partial: 'bg-purple-50 text-purple-800 border-purple-300 hover:bg-purple-100',
+    SideLine: 'bg-rose-50 text-rose-800 border-rose-300 hover:bg-rose-100',
   };
 
   return (
@@ -75,6 +79,8 @@ const StatusButton = ({ status, onStatusChange }) => {
         <option value="Packing" className="text-amber-800 font-bold">Packing</option>
         <option value="Picked Up" className="text-blue-800 font-bold">Picked Up</option>
         <option value="Delivered" className="text-emerald-800 font-bold">Delivered</option>
+        <option value="Partial" className="text-purple-800 font-bold">Partial</option>
+        <option value="SideLine" className="text-rose-800 font-bold">SideLine</option>
       </select>
       <ChevronDown size={11} className="absolute right-1.5 top-1/2 -translate-y-1/2 pointer-events-none opacity-60 text-slate-600" />
     </div>
@@ -95,29 +101,59 @@ const ShipmentsTable = ({
   const [copiedDetailsId, setCopiedDetailsId] = useState(null);
   const [savingIds, setSavingIds] = useState({});
 
-  // Group into:
-  // 1. Immediate Deliveries (Today's orders on top highlighted in green, Tomorrow's orders below in yellow)
-  // 2. Upcoming Shipments (Future dates, ascending)
-  // 3. Past Dated Shipments (Past dates, ascending)
-  const { immediateList, upcomingList, pastList, todayCount, tomorrowCount } = useMemo(() => {
-    if (!shipments) return { immediateList: [], upcomingList: [], pastList: [], todayCount: 0, tomorrowCount: 0 };
+  // Group into 5 sequential tables:
+  // 1. Today/Tomorrow Table (Immediate)
+  // 2. Partial Table (status === 'Partial')
+  // 3. SideLine Table (status === 'SideLine')
+  // 4. Normal Table (Upcoming / Scheduled)
+  // 5. Outdated Table (Past Dated Shipments)
+  const {
+    immediateList,
+    partialList,
+    sidelineList,
+    upcomingList,
+    pastList,
+    todayCount,
+    tomorrowCount,
+  } = useMemo(() => {
+    if (!shipments) {
+      return {
+        immediateList: [],
+        partialList: [],
+        sidelineList: [],
+        upcomingList: [],
+        pastList: [],
+        todayCount: 0,
+        tomorrowCount: 0,
+      };
+    }
 
     const today = [];
     const tomorrow = [];
+    const partial = [];
+    const sideline = [];
     const upcoming = [];
     const past = [];
 
     shipments.forEach((s) => {
       const activeData = editedRows[s._id] || s;
-      const dDate = activeData.deliveryDate;
-      if (isDateToday(dDate)) {
-        today.push(s);
-      } else if (isDateTomorrow(dDate)) {
-        tomorrow.push(s);
-      } else if (isDatePast(dDate)) {
-        past.push(s);
+      const st = activeData.status;
+
+      if (st === 'Partial') {
+        partial.push(s);
+      } else if (st === 'SideLine' || st === 'Sideline') {
+        sideline.push(s);
       } else {
-        upcoming.push(s);
+        const dDate = activeData.deliveryDate;
+        if (isDateToday(dDate)) {
+          today.push(s);
+        } else if (isDateTomorrow(dDate)) {
+          tomorrow.push(s);
+        } else if (isDatePast(dDate)) {
+          past.push(s);
+        } else {
+          upcoming.push(s);
+        }
       }
     });
 
@@ -134,14 +170,17 @@ const ShipmentsTable = ({
 
     today.sort(sortByNearestDateAsc);
     tomorrow.sort(sortByNearestDateAsc);
+    partial.sort(sortByNearestDateAsc);
+    sideline.sort(sortByNearestDateAsc);
     upcoming.sort(sortByNearestDateAsc);
     past.sort(sortByNearestDateAsc);
 
-    // Today's orders enlisted at the top inside immediate list, followed by tomorrow's
     const immediate = [...today, ...tomorrow];
 
     return {
       immediateList: immediate,
+      partialList: partial,
+      sidelineList: sideline,
       upcomingList: upcoming,
       pastList: past,
       todayCount: today.length,
@@ -202,6 +241,7 @@ Company: ${activeData.company || ''}
 Status: ${activeData.status || ''}
 Waybill / CN: ${activeData.waybillNo || 'N/A'}
 Invoice No: ${activeData.invoiceNo || 'N/A'}
+Remarks: ${activeData.remarks || activeData.notes || 'N/A'}
 Pickup Date: ${formatDateDDMMYYYY(activeData.pickupDate)}
 Delivery Date: ${formatDateDDMMYYYY(activeData.deliveryDate)}${tag}
 Warehouse Name: ${activeData.warehouseName || ''}
@@ -230,6 +270,10 @@ Units: ${activeData.units || 0}`;
       ? 'bg-emerald-50/75 hover:bg-emerald-100/80'
       : isTomorrow
       ? 'bg-amber-50/60 hover:bg-amber-100/60'
+      : activeData.status === 'Partial'
+      ? 'bg-purple-50/50 hover:bg-purple-100/60'
+      : activeData.status === 'SideLine'
+      ? 'bg-rose-50/50 hover:bg-rose-100/60'
       : isPast
       ? 'bg-slate-50/65 hover:bg-slate-100/70 text-slate-600'
       : isSelected
@@ -257,7 +301,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 2. RO / PO (Text) */}
-        <td className="py-2.5 px-2.5 w-[10%]">
+        <td className="py-2.5 px-2.5 w-[9%]">
           <input
             type="text"
             value={activeData.roPo}
@@ -268,14 +312,14 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 3. Company (Dropdown with Branded Colors & Logos) */}
-        <td className="py-2.5 px-2 w-[10%]">
+        <td className="py-2.5 px-2 w-[9%]">
           <CompanyBadge
             company={activeData.company}
             onChange={(newCompany) => handleFieldChange(shipment._id, 'company', newCompany)}
           />
         </td>
 
-        {/* 4. Status (Dropdown without emojis) */}
+        {/* 4. Status (Dropdown with all 5 statuses) */}
         <td className="py-2.5 px-2 w-[9%]">
           <StatusButton
             status={activeData.status}
@@ -284,7 +328,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 5. Waybill / CN (Numbers) */}
-        <td className="py-2.5 px-2 w-[10%]">
+        <td className="py-2.5 px-2 w-[9%]">
           <input
             type="text"
             value={activeData.waybillNo || ''}
@@ -295,7 +339,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 6. Invoice No (Editable, null for existing entries) */}
-        <td className="py-2.5 px-2 w-[10%]">
+        <td className="py-2.5 px-2 w-[9%]">
           <input
             type="text"
             value={activeData.invoiceNo || ''}
@@ -305,8 +349,35 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 7. Pickup Date (DD/MM/YYYY formatted with calendar picker) */}
-        <td className="py-2.5 px-2 w-[10%]">
+        {/* 7. Remarks (Compact block with full view tooltip on hover) */}
+        <td className="py-2 px-2 w-[11%]">
+          <div className="group relative w-full">
+            <input
+              type="text"
+              value={activeData.remarks || activeData.notes || ''}
+              onChange={(e) => {
+                handleFieldChange(shipment._id, 'remarks', e.target.value);
+                handleFieldChange(shipment._id, 'notes', e.target.value);
+              }}
+              placeholder="—"
+              className="w-full truncate bg-slate-50/80 hover:bg-white focus:bg-white px-2 py-1 rounded-md text-xs font-medium text-slate-700 border border-transparent hover:border-slate-300 focus:border-[#ff6b35] transition-all outline-none"
+              title={activeData.remarks || activeData.notes || ''}
+            />
+            {(activeData.remarks || activeData.notes) && (
+              <div className="absolute bottom-full left-0 mb-1.5 hidden group-hover:flex flex-col z-50 min-w-[200px] max-w-sm p-2.5 bg-slate-900/95 backdrop-blur-xs text-white text-xs rounded-xl shadow-2xl border border-slate-700 whitespace-normal break-words pointer-events-none animate-in fade-in duration-150">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#ff6b35] mb-1">
+                  Full Remarks
+                </span>
+                <span className="leading-relaxed text-slate-100 font-normal">
+                  {activeData.remarks || activeData.notes}
+                </span>
+              </div>
+            )}
+          </div>
+        </td>
+
+        {/* 8. Pickup Date (DD/MM/YYYY formatted with calendar picker) */}
+        <td className="py-2.5 px-2 w-[9%]">
           <DateInput
             value={activeData.pickupDate}
             onChange={(val) => handleFieldChange(shipment._id, 'pickupDate', val)}
@@ -315,8 +386,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 8. Delivery Date (DD/MM/YYYY formatted with calendar picker & Today/Tomorrow/Past highlight) */}
-        <td className="py-2.5 px-2 w-[10%]">
+        {/* 9. Delivery Date (DD/MM/YYYY formatted with calendar picker & Today/Tomorrow/Past highlight) */}
+        <td className="py-2.5 px-2 w-[9%]">
           <div className="flex flex-col gap-1">
             <DateInput
               value={activeData.deliveryDate}
@@ -344,8 +415,8 @@ Units: ${activeData.units || 0}`;
           </div>
         </td>
 
-        {/* 9. Warehouse Name (Full width text) */}
-        <td className="py-2.5 px-2 w-[16%]">
+        {/* 10. Warehouse Name (Full width text) */}
+        <td className="py-2.5 px-2 w-[14%]">
           <input
             type="text"
             value={activeData.warehouseName}
@@ -355,8 +426,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 10. Boxes (Numbers) */}
-        <td className="py-2.5 px-1.5 w-[5%] text-right">
+        {/* 11. Boxes (Numbers) */}
+        <td className="py-2.5 px-1.5 w-[4.5%] text-right">
           <input
             type="number"
             min="0"
@@ -366,8 +437,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 11. Units (Numbers) */}
-        <td className="py-2.5 px-1.5 w-[5%] text-right">
+        {/* 12. Units (Numbers) */}
+        <td className="py-2.5 px-1.5 w-[4.5%] text-right">
           <input
             type="number"
             min="0"
@@ -377,8 +448,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 12. Actions: Save & Cancel when modified, or Copy & Delete when normal */}
-        <td className="py-2.5 px-2 w-[13%] text-center">
+        {/* 13. Actions: Save & Cancel when modified, or Copy & Delete when normal */}
+        <td className="py-2.5 px-2 w-[11%] text-center">
           {isModified ? (
             /* Save and Cancel buttons in respective row */
             <div className="flex items-center justify-center gap-1.5 animate-in fade-in">
@@ -386,7 +457,7 @@ Units: ${activeData.units || 0}`;
                 type="button"
                 onClick={() => handleSave(shipment._id)}
                 disabled={isSaving}
-                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-bold bg-[#ff6b35] hover:bg-[#e5521a] text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-bold bg-[#ff6b35] hover:bg-[#e5521a] text-white shadow-xs transition-all cursor-pointer disabled:opacity-50"
                 title="Save changes for this entry"
               >
                 <Save size={12} className={isSaving ? 'animate-spin' : ''} />
@@ -396,7 +467,7 @@ Units: ${activeData.units || 0}`;
                 type="button"
                 onClick={() => handleCancelEdit(shipment._id)}
                 disabled={isSaving}
-                className="flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition-all cursor-pointer"
+                className="flex items-center gap-1 px-1.5 py-1 rounded-md text-xs font-semibold bg-slate-200 hover:bg-slate-300 text-slate-700 transition-all cursor-pointer"
                 title="Cancel and revert edits"
               >
                 <RotateCcw size={11} />
@@ -436,7 +507,7 @@ Units: ${activeData.units || 0}`;
     );
   };
 
-  // Reusable Table Header row
+  // Reusable Table Header row with 13 columns
   const renderTableHeader = (headerBg = 'bg-slate-50', headerTextColor = 'text-slate-700', borderColor = 'border-slate-200') => (
     <thead>
       <tr className={`${headerBg} text-[11px] font-bold uppercase tracking-wider ${headerTextColor} border-b ${borderColor}`}>
@@ -454,17 +525,18 @@ Units: ${activeData.units || 0}`;
             )}
           </button>
         </th>
-        <th className="py-2.5 px-2.5 w-[10%]">RO / PO</th>
-        <th className="py-2.5 px-2 w-[10%]">Company</th>
+        <th className="py-2.5 px-2.5 w-[9%]">RO / PO</th>
+        <th className="py-2.5 px-2 w-[9%]">Company</th>
         <th className="py-2.5 px-2 w-[9%]">Status</th>
-        <th className="py-2.5 px-2 w-[10%]">Waybill / CN</th>
-        <th className="py-2.5 px-2 w-[10%]">Invoice No</th>
-        <th className="py-2.5 px-2 w-[10%]">Pickup Date (DD/MM/YYYY)</th>
-        <th className="py-2.5 px-2 w-[10%]">Delivery Date (DD/MM/YYYY)</th>
-        <th className="py-2.5 px-2 w-[16%]">Warehouse Name</th>
-        <th className="py-2.5 px-1.5 w-[5%] text-right">Boxes</th>
-        <th className="py-2.5 px-1.5 w-[5%] text-right">Units</th>
-        <th className="py-2.5 px-2 w-[13%] text-center">Actions</th>
+        <th className="py-2.5 px-2 w-[9%]">Waybill / CN</th>
+        <th className="py-2.5 px-2 w-[9%]">Invoice No</th>
+        <th className="py-2.5 px-2 w-[11%]">Remarks</th>
+        <th className="py-2.5 px-2 w-[9%]">Pickup Date (DD/MM/YYYY)</th>
+        <th className="py-2.5 px-2 w-[9%]">Delivery Date (DD/MM/YYYY)</th>
+        <th className="py-2.5 px-2 w-[14%]">Warehouse Name</th>
+        <th className="py-2.5 px-1.5 w-[4.5%] text-right">Boxes</th>
+        <th className="py-2.5 px-1.5 w-[4.5%] text-right">Units</th>
+        <th className="py-2.5 px-2 w-[11%] text-center">Actions</th>
       </tr>
     </thead>
   );
@@ -487,10 +559,9 @@ Units: ${activeData.units || 0}`;
         </div>
       )}
 
-      {/* SECTION 1: TODAY & TOMORROW'S DELIVERIES (Yellow/Amber container, Today enlisted on top in green) */}
+      {/* TABLE 1: TODAY & TOMORROW'S DELIVERIES (Yellow/Amber container, Today on top in green) */}
       {immediateList.length > 0 && (
         <div className="rounded-2xl border-2 border-amber-300 bg-white shadow-xs overflow-hidden w-full">
-          {/* Section Header */}
           <div className="bg-amber-100/75 px-4 py-3 border-b border-amber-300 flex items-center justify-between">
             <div className="flex items-center gap-2.5 flex-wrap">
               <h3 className="text-sm font-bold text-amber-950 font-heading tracking-tight flex items-center gap-2">
@@ -525,13 +596,76 @@ Units: ${activeData.units || 0}`;
         </div>
       )}
 
-      {/* SECTION 2: UPCOMING SHIPMENTS (Ascending order by nearest date) */}
+      {/* TABLE 2: PARTIAL SHIPMENTS TABLE (Purple theme) */}
+      {partialList.length > 0 && (
+        <div className="rounded-2xl border-2 border-purple-300 bg-white shadow-xs overflow-hidden w-full">
+          <div className="bg-purple-100/80 px-4 py-3 border-b border-purple-300 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-5 h-5 rounded-md bg-purple-200 text-purple-700 flex items-center justify-center">
+                <Boxes size={13} />
+              </div>
+              <h3 className="text-sm font-bold text-purple-950 font-heading tracking-tight flex items-center gap-2">
+                Partial Shipments
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-purple-600 text-white shadow-xs">
+                  {partialList.length} Partial
+                </span>
+              </h3>
+            </div>
+            <span className="text-xs text-purple-900 font-semibold hidden sm:inline">
+              Incomplete / Partial Dispatches (Ascending Order)
+            </span>
+          </div>
+
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              {renderTableHeader('bg-purple-50/90', 'text-purple-950', 'border-purple-200')}
+              <tbody>
+                {partialList.map((s) => renderShipmentRow(s))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TABLE 3: SIDELINE SHIPMENTS TABLE (Rose theme) */}
+      {sidelineList.length > 0 && (
+        <div className="rounded-2xl border-2 border-rose-300 bg-white shadow-xs overflow-hidden w-full">
+          <div className="bg-rose-100/80 px-4 py-3 border-b border-rose-300 flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="w-5 h-5 rounded-md bg-rose-200 text-rose-700 flex items-center justify-center">
+                <PauseCircle size={13} />
+              </div>
+              <h3 className="text-sm font-bold text-rose-950 font-heading tracking-tight flex items-center gap-2">
+                SideLine Shipments
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-600 text-white shadow-xs">
+                  {sidelineList.length} SideLine
+                </span>
+              </h3>
+            </div>
+            <span className="text-xs text-rose-900 font-semibold hidden sm:inline">
+              Sidelined / On-Hold Dispatches (Ascending Order)
+            </span>
+          </div>
+
+          <div className="w-full overflow-x-auto">
+            <table className="w-full text-left text-xs border-collapse">
+              {renderTableHeader('bg-rose-50/90', 'text-rose-950', 'border-rose-200')}
+              <tbody>
+                {sidelineList.map((s) => renderShipmentRow(s))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TABLE 4: NORMAL SHIPMENTS (Upcoming Scheduled Dispatches in Ascending Order) */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden w-full">
-        {/* Section Header */}
         <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900 font-heading">
-              {immediateList.length > 0 ? 'Upcoming Shipments' : 'All Shipments'}
+              {immediateList.length > 0 || partialList.length > 0 || sidelineList.length > 0
+                ? 'Normal Shipments'
+                : 'All Shipments'}
               <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
                 {upcomingList.length}
               </span>
@@ -546,9 +680,13 @@ Units: ${activeData.units || 0}`;
           <table className="w-full text-left text-xs border-collapse">
             {renderTableHeader('bg-slate-50', 'text-slate-700', 'border-slate-200')}
             <tbody>
-              {upcomingList.length === 0 && immediateList.length === 0 && pastList.length === 0 ? (
+              {upcomingList.length === 0 &&
+              immediateList.length === 0 &&
+              partialList.length === 0 &&
+              sidelineList.length === 0 &&
+              pastList.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-14 text-center text-slate-500">
+                  <td colSpan={13} className="py-14 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Package size={32} className="text-slate-300 mb-1" />
                       <p className="text-sm font-bold text-slate-700">No shipments found</p>
@@ -558,8 +696,8 @@ Units: ${activeData.units || 0}`;
                 </tr>
               ) : upcomingList.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs font-medium">
-                    No future upcoming shipments. Check Today & Tomorrow or Past Shipments below.
+                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No future upcoming shipments in this category. Check other tables above or below.
                   </td>
                 </tr>
               ) : (
@@ -570,16 +708,15 @@ Units: ${activeData.units || 0}`;
         </div>
       </div>
 
-      {/* SECTION 3: PAST DATED SHIPMENTS TABLE (Bottom table in ascending order) */}
+      {/* TABLE 5: OUTDATED SHIPMENTS TABLE (Past Dated in Ascending Order) */}
       <div className="rounded-2xl border border-slate-300 bg-white shadow-xs overflow-hidden w-full">
-        {/* Section Header */}
         <div className="bg-slate-100/90 px-4 py-3 border-b border-slate-300 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-5 h-5 rounded-md bg-slate-200 text-slate-600 flex items-center justify-center">
               <History size={13} />
             </div>
             <h3 className="text-sm font-bold text-slate-800 font-heading tracking-tight flex items-center gap-2">
-              Past Dated Shipments
+              Outdated Shipments
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
                 {pastList.length}
               </span>
@@ -596,8 +733,8 @@ Units: ${activeData.units || 0}`;
             <tbody>
               {pastList.length === 0 ? (
                 <tr>
-                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs font-medium">
-                    No past dated shipments.
+                  <td colSpan={13} className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No outdated / past dated shipments.
                   </td>
                 </tr>
               ) : (
