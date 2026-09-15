@@ -4,48 +4,49 @@ const shipmentSchema = new mongoose.Schema(
   {
     roPo: {
       type: String,
-      required: [true, 'RO/PO is required'],
       trim: true,
+      default: 'Not Available',
     },
     company: {
       type: String,
-      required: [true, 'Company is required'],
       enum: ['Amazon', 'BlinkIT', 'Swiggy', 'Other'],
-      default: 'Amazon',
+      default: 'Other',
     },
     status: {
       type: String,
-      required: [true, 'Status is required'],
       enum: ['Packing', 'Picked Up', 'Delivered'],
       default: 'Packing',
     },
     waybillNo: {
       type: String,
       trim: true,
-      default: '',
+      default: 'Not Available',
+    },
+    invoiceNo: {
+      type: String,
+      trim: true,
+      default: null,
     },
     pickupDate: {
       type: Date,
-      required: [true, 'Pickup date is required'],
+      default: Date.now,
     },
     deliveryDate: {
       type: Date,
-      required: [true, 'Delivery date is required'],
+      default: Date.now,
     },
     warehouseName: {
       type: String,
-      required: [true, 'Warehouse name is required'],
       trim: true,
+      default: 'Not Available',
     },
     boxes: {
       type: Number,
-      required: [true, 'Number of boxes is required'],
       min: [0, 'Boxes cannot be negative'],
       default: 0,
     },
     units: {
       type: Number,
-      required: [true, 'Number of units is required'],
       min: [0, 'Units cannot be negative'],
       default: 0,
     },

@@ -164,9 +164,11 @@ router.get('/', async (req, res) => {
       query = query.sort({ boxes: -1 });
     } else if (sortBy === 'units_desc') {
       query = query.sort({ units: -1 });
-    } else {
-      // Default: Most recently created/updated first
+    } else if (sortBy === 'createdAt_desc') {
       query = query.sort({ createdAt: -1 });
+    } else {
+      // Default: Nearest date arrives on top (ascending order by deliveryDate, then pickupDate)
+      query = query.sort({ deliveryDate: 1, pickupDate: 1, createdAt: -1 });
     }
 
     const shipments = await query.exec();
@@ -207,6 +209,7 @@ router.post('/', async (req, res) => {
       company,
       status,
       waybillNo,
+      invoiceNo,
       pickupDate,
       deliveryDate,
       warehouseName,
@@ -215,31 +218,38 @@ router.post('/', async (req, res) => {
       notes,
     } = req.body;
 
-    if (!roPo || !company || !pickupDate || !deliveryDate || !warehouseName) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide all required fields: RO/PO, Company, Pickup Date, Delivery Date, Warehouse Name',
-      });
-    }
+    const parsedPickup = parseInputDate(pickupDate) || new Date();
+    const parsedDelivery = parseInputDate(deliveryDate) || new Date();
 
-    const parsedPickup = parseInputDate(pickupDate);
-    const parsedDelivery = parseInputDate(deliveryDate);
+    const cleanRoPo = (roPo && typeof roPo === 'string' && roPo.trim()) 
+      ? roPo.trim().toUpperCase() 
+      : 'Not Available';
 
-    if (!parsedPickup || !parsedDelivery) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid pickup or delivery date format. Use DD/MM/YYYY.',
-      });
-    }
+    const cleanWarehouse = (warehouseName && typeof warehouseName === 'string' && warehouseName.trim()) 
+      ? warehouseName.trim() 
+      : 'Not Available';
+
+    const cleanWaybill = (waybillNo && waybillNo.toString().trim()) 
+      ? waybillNo.toString().trim() 
+      : 'Not Available';
+
+    const cleanInvoice = (invoiceNo && invoiceNo.toString().trim()) 
+      ? invoiceNo.toString().trim() 
+      : null;
+
+    const cleanCompany = (company && ['Amazon', 'BlinkIT', 'Swiggy', 'Other'].includes(company))
+      ? company
+      : 'Other';
 
     const newShipment = new Shipment({
-      roPo: roPo.trim().toUpperCase(),
-      company,
+      roPo: cleanRoPo,
+      company: cleanCompany,
       status: status || 'Packing',
-      waybillNo: (waybillNo || '').toString().trim(),
+      waybillNo: cleanWaybill,
+      invoiceNo: cleanInvoice,
       pickupDate: parsedPickup,
       deliveryDate: parsedDelivery,
-      warehouseName: warehouseName.trim(),
+      warehouseName: cleanWarehouse,
       boxes: Number(boxes) || 0,
       units: Number(units) || 0,
       notes: notes || '',
@@ -268,6 +278,7 @@ router.put('/:id', async (req, res) => {
       company,
       status,
       waybillNo,
+      invoiceNo,
       pickupDate,
       deliveryDate,
       warehouseName,
@@ -286,6 +297,7 @@ router.put('/:id', async (req, res) => {
     if (company !== undefined) shipment.company = company;
     if (status !== undefined) shipment.status = status;
     if (waybillNo !== undefined) shipment.waybillNo = (waybillNo || '').toString().trim();
+    if (invoiceNo !== undefined) shipment.invoiceNo = invoiceNo ? invoiceNo.toString().trim() : null;
     if (pickupDate !== undefined) {
       const parsed = parseInputDate(pickupDate);
       if (parsed) shipment.pickupDate = parsed;

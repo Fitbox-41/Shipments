@@ -47,6 +47,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
 
   const [formData, setFormData] = useState({
     roPo: '',
+    invoiceNo: '',
     company: 'Amazon',
     status: 'Packing',
     waybillNo: '',
@@ -73,17 +74,33 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    if (!formData.roPo.trim() || !formData.warehouseName.trim()) {
-      setError('Please provide RO/PO and Warehouse Name');
-      return;
-    }
-
     setError('');
     setIsSubmitting(true);
 
+    const cleanRoPo = (formData.roPo && formData.roPo.trim()) 
+      ? formData.roPo.trim().toUpperCase() 
+      : 'Not Available';
+
+    const cleanWarehouse = (formData.warehouseName && formData.warehouseName.trim()) 
+      ? formData.warehouseName.trim() 
+      : 'Not Available';
+
+    const cleanWaybill = (formData.waybillNo && formData.waybillNo.trim()) 
+      ? formData.waybillNo.trim() 
+      : 'Not Available';
+
+    const cleanInvoice = (formData.invoiceNo && formData.invoiceNo.trim())
+      ? formData.invoiceNo.trim()
+      : null;
+
     const success = await onAddShipment({
       ...formData,
-      roPo: formData.roPo.trim().toUpperCase(),
+      roPo: cleanRoPo,
+      invoiceNo: cleanInvoice,
+      warehouseName: cleanWarehouse,
+      waybillNo: cleanWaybill,
+      pickupDate: formData.pickupDate || todayStr,
+      deliveryDate: formData.deliveryDate || tomorrowStr,
       boxes: Number(formData.boxes) || 0,
       units: Number(formData.units) || 0,
       notes: '',
@@ -93,6 +110,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
     if (success) {
       setFormData({
         roPo: '',
+        invoiceNo: '',
         company: 'Amazon',
         status: 'Packing',
         waybillNo: '',
@@ -141,12 +159,11 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
           {/* 1. RO / PO */}
           <div>
             <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
-              RO / PO Number <span className="text-[#ff6b35]">*</span>
+              RO / PO Number
             </label>
             <input
               type="text"
               name="roPo"
-              required
               placeholder="e.g. PO-AMZ-88941"
               value={formData.roPo}
               onChange={handleChange}
@@ -157,7 +174,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
           {/* 2. Company with Branded Colors */}
           <div>
             <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
-              Company <span className="text-[#ff6b35]">*</span>
+              Company
             </label>
             <div className="relative flex items-center">
               <div className="absolute left-3 pointer-events-none">
@@ -182,7 +199,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
           {/* 3. Status */}
           <div>
             <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
-              Status <span className="text-[#ff6b35]">*</span>
+              Status
             </label>
             <select
               name="status"
@@ -211,14 +228,28 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
             />
           </div>
 
+          {/* Invoice Number */}
+          <div>
+            <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
+              Invoice Number
+            </label>
+            <input
+              type="text"
+              name="invoiceNo"
+              placeholder="e.g. INV-2026-0901"
+              value={formData.invoiceNo}
+              onChange={handleChange}
+              className="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs font-mono font-semibold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-[#ff6b35] focus:bg-white transition-all"
+            />
+          </div>
+
           {/* 5. Pickup Date (DD/MM/YYYY) */}
           <div>
             <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
-              Pickup Date (DD/MM/YYYY) <span className="text-[#ff6b35]">*</span>
+              Pickup Date (DD/MM/YYYY)
             </label>
             <DateInput
               name="pickupDate"
-              required
               value={formData.pickupDate}
               onChange={(val) => setFormData((prev) => ({ ...prev, pickupDate: val }))}
               placeholder="DD/MM/YYYY"
@@ -229,7 +260,7 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="text-xs font-bold uppercase text-slate-700">
-                Delivery Date (DD/MM/YYYY) <span className="text-[#ff6b35]">*</span>
+                Delivery Date (DD/MM/YYYY)
               </label>
               <button
                 type="button"
@@ -241,7 +272,6 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
             </div>
             <DateInput
               name="deliveryDate"
-              required
               value={formData.deliveryDate}
               onChange={(val) => setFormData((prev) => ({ ...prev, deliveryDate: val }))}
               placeholder="DD/MM/YYYY"
@@ -257,7 +287,6 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
               type="number"
               name="boxes"
               min="0"
-              required
               placeholder="0"
               value={formData.boxes}
               onChange={handleChange}
@@ -274,7 +303,6 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
               type="number"
               name="units"
               min="0"
-              required
               placeholder="0"
               value={formData.units}
               onChange={handleChange}
@@ -285,12 +313,11 @@ const AddShipmentCard = ({ isOpen, onClose, onAddShipment }) => {
           {/* 9. Warehouse Name */}
           <div className="sm:col-span-2 lg:col-span-4">
             <label className="block text-xs font-bold uppercase text-slate-700 mb-1">
-              Warehouse Name / Hub <span className="text-[#ff6b35]">*</span>
+              Warehouse Name / Hub
             </label>
             <input
               type="text"
               name="warehouseName"
-              required
               placeholder="e.g. Blinkit Mumbai Hub - Andheri East WH2"
               value={formData.warehouseName}
               onChange={handleChange}

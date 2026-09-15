@@ -9,8 +9,16 @@ import {
   Square,
   Package,
   RotateCcw,
+  Clock,
+  History,
 } from 'lucide-react';
-import { isDateTomorrow, formatDateDDMMYYYY } from '../utils/excelExport';
+import {
+  isDateToday,
+  isDateTomorrow,
+  isDatePast,
+  formatDateDDMMYYYY,
+  parseDate,
+} from '../utils/excelExport';
 import { AmazonIcon, BlinkitIcon, SwiggyIcon } from './AddShipmentCard';
 import DateInput from './DateInput';
 
@@ -87,23 +95,58 @@ const ShipmentsTable = ({
   const [copiedDetailsId, setCopiedDetailsId] = useState(null);
   const [savingIds, setSavingIds] = useState({});
 
-  // Group into Tomorrow's Deliveries and Other Entries (kept in entered/created order)
-  const { tomorrowList, otherList } = useMemo(() => {
-    if (!shipments) return { tomorrowList: [], otherList: [] };
+  // Group into:
+  // 1. Immediate Deliveries (Today's orders on top highlighted in green, Tomorrow's orders below in yellow)
+  // 2. Upcoming Shipments (Future dates, ascending)
+  // 3. Past Dated Shipments (Past dates, ascending)
+  const { immediateList, upcomingList, pastList, todayCount, tomorrowCount } = useMemo(() => {
+    if (!shipments) return { immediateList: [], upcomingList: [], pastList: [], todayCount: 0, tomorrowCount: 0 };
 
+    const today = [];
     const tomorrow = [];
-    const other = [];
+    const upcoming = [];
+    const past = [];
 
     shipments.forEach((s) => {
       const activeData = editedRows[s._id] || s;
-      if (isDateTomorrow(activeData.deliveryDate)) {
+      const dDate = activeData.deliveryDate;
+      if (isDateToday(dDate)) {
+        today.push(s);
+      } else if (isDateTomorrow(dDate)) {
         tomorrow.push(s);
+      } else if (isDatePast(dDate)) {
+        past.push(s);
       } else {
-        other.push(s);
+        upcoming.push(s);
       }
     });
 
-    return { tomorrowList: tomorrow, otherList: other };
+    const sortByNearestDateAsc = (a, b) => {
+      const dataA = editedRows[a._id] || a;
+      const dataB = editedRows[b._id] || b;
+      const timeA = parseDate(dataA.deliveryDate)?.getTime() ?? parseDate(dataA.pickupDate)?.getTime() ?? Infinity;
+      const timeB = parseDate(dataB.deliveryDate)?.getTime() ?? parseDate(dataB.pickupDate)?.getTime() ?? Infinity;
+      if (timeA !== timeB) return timeA - timeB;
+      const pickupA = parseDate(dataA.pickupDate)?.getTime() ?? Infinity;
+      const pickupB = parseDate(dataB.pickupDate)?.getTime() ?? Infinity;
+      return pickupA - pickupB;
+    };
+
+    today.sort(sortByNearestDateAsc);
+    tomorrow.sort(sortByNearestDateAsc);
+    upcoming.sort(sortByNearestDateAsc);
+    past.sort(sortByNearestDateAsc);
+
+    // Today's orders enlisted at the top inside immediate list, followed by tomorrow's
+    const immediate = [...today, ...tomorrow];
+
+    return {
+      immediateList: immediate,
+      upcomingList: upcoming,
+      pastList: past,
+      todayCount: today.length,
+      tomorrowCount: tomorrow.length,
+    };
   }, [shipments, editedRows]);
 
   // Handle cell modification
@@ -150,14 +193,17 @@ const ShipmentsTable = ({
   // Copy complete data formatted with specific column names in DD/MM/YYYY format
   const handleCopyFormattedDetails = (shipment) => {
     const activeData = editedRows[shipment._id] || shipment;
+    const isToday = isDateToday(activeData.deliveryDate);
     const isTomorrow = isDateTomorrow(activeData.deliveryDate);
+    const tag = isToday ? ' (Today Delivery)' : isTomorrow ? ' (Tomorrow Delivery)' : '';
 
     const formattedText = `RO/PO: ${activeData.roPo || ''}
 Company: ${activeData.company || ''}
 Status: ${activeData.status || ''}
 Waybill / CN: ${activeData.waybillNo || 'N/A'}
+Invoice No: ${activeData.invoiceNo || 'N/A'}
 Pickup Date: ${formatDateDDMMYYYY(activeData.pickupDate)}
-Delivery Date: ${formatDateDDMMYYYY(activeData.deliveryDate)}${isTomorrow ? ' (Tomorrow Delivery)' : ''}
+Delivery Date: ${formatDateDDMMYYYY(activeData.deliveryDate)}${tag}
 Warehouse Name: ${activeData.warehouseName || ''}
 Boxes: ${activeData.boxes || 0}
 Units: ${activeData.units || 0}`;
@@ -168,25 +214,32 @@ Units: ${activeData.units || 0}`;
   };
 
   // Render a single shipment row
-  const renderShipmentRow = (shipment, isTomorrowSection = false) => {
+  const renderShipmentRow = (shipment) => {
     const isSelected = selectedIds.includes(shipment._id);
     const activeData = editedRows[shipment._id] || shipment;
     const isModified = Boolean(editedRows[shipment._id]?.isModified);
+    const isToday = isDateToday(activeData.deliveryDate);
     const isTomorrow = isDateTomorrow(activeData.deliveryDate);
+    const isPast = isDatePast(activeData.deliveryDate);
     const isSaving = savingIds[shipment._id];
+
+    // Priority-based row background styling
+    const rowClass = isModified
+      ? 'bg-orange-50/70 hover:bg-orange-100/70'
+      : isToday
+      ? 'bg-emerald-50/75 hover:bg-emerald-100/80'
+      : isTomorrow
+      ? 'bg-amber-50/60 hover:bg-amber-100/60'
+      : isPast
+      ? 'bg-slate-50/65 hover:bg-slate-100/70 text-slate-600'
+      : isSelected
+      ? 'bg-blue-50/70 hover:bg-blue-100/70'
+      : 'bg-white hover:bg-slate-50';
 
     return (
       <tr
         key={shipment._id}
-        className={`border-b border-slate-200 transition-colors duration-150 ${
-          isTomorrowSection || isTomorrow
-            ? 'bg-amber-50/50 hover:bg-amber-100/60'
-            : isModified
-            ? 'bg-orange-50/60 hover:bg-orange-100/60'
-            : isSelected
-            ? 'bg-slate-100/80 hover:bg-slate-100'
-            : 'bg-white hover:bg-slate-50'
-        }`}
+        className={`border-b border-slate-200 transition-colors duration-150 ${rowClass}`}
       >
         {/* 1. Checkbox */}
         <td className="py-2.5 px-2 text-center w-8">
@@ -204,7 +257,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 2. RO / PO (Text) */}
-        <td className="py-2.5 px-2.5 w-[11%]">
+        <td className="py-2.5 px-2.5 w-[10%]">
           <input
             type="text"
             value={activeData.roPo}
@@ -215,7 +268,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 3. Company (Dropdown with Branded Colors & Logos) */}
-        <td className="py-2.5 px-2 w-[11%]">
+        <td className="py-2.5 px-2 w-[10%]">
           <CompanyBadge
             company={activeData.company}
             onChange={(newCompany) => handleFieldChange(shipment._id, 'company', newCompany)}
@@ -223,7 +276,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 4. Status (Dropdown without emojis) */}
-        <td className="py-2.5 px-2 w-[10%]">
+        <td className="py-2.5 px-2 w-[9%]">
           <StatusButton
             status={activeData.status}
             onStatusChange={(newStatus) => handleFieldChange(shipment._id, 'status', newStatus)}
@@ -231,7 +284,7 @@ Units: ${activeData.units || 0}`;
         </td>
 
         {/* 5. Waybill / CN (Numbers) */}
-        <td className="py-2.5 px-2.5 w-[11%]">
+        <td className="py-2.5 px-2 w-[10%]">
           <input
             type="text"
             value={activeData.waybillNo || ''}
@@ -241,8 +294,19 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 6. Pickup Date (DD/MM/YYYY formatted with calendar picker) */}
-        <td className="py-2.5 px-2 w-[11%]">
+        {/* 6. Invoice No (Editable, null for existing entries) */}
+        <td className="py-2.5 px-2 w-[10%]">
+          <input
+            type="text"
+            value={activeData.invoiceNo || ''}
+            onChange={(e) => handleFieldChange(shipment._id, 'invoiceNo', e.target.value)}
+            className="w-full font-mono text-xs font-semibold text-slate-800 bg-transparent focus:bg-white focus:ring-1 focus:ring-[#ff6b35] focus:px-1.5 focus:py-1 rounded border border-transparent transition-all outline-none"
+            placeholder="—"
+          />
+        </td>
+
+        {/* 7. Pickup Date (DD/MM/YYYY formatted with calendar picker) */}
+        <td className="py-2.5 px-2 w-[10%]">
           <DateInput
             value={activeData.pickupDate}
             onChange={(val) => handleFieldChange(shipment._id, 'pickupDate', val)}
@@ -251,19 +315,37 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 7. Delivery Date (DD/MM/YYYY formatted with calendar picker & Tomorrow highlight) */}
-        <td className="py-2.5 px-2 w-[11%]">
-          <DateInput
-            value={activeData.deliveryDate}
-            onChange={(val) => handleFieldChange(shipment._id, 'deliveryDate', val)}
-            compact={true}
-            isTomorrow={isTomorrow}
-            placeholder="DD/MM/YYYY"
-          />
+        {/* 8. Delivery Date (DD/MM/YYYY formatted with calendar picker & Today/Tomorrow/Past highlight) */}
+        <td className="py-2.5 px-2 w-[10%]">
+          <div className="flex flex-col gap-1">
+            <DateInput
+              value={activeData.deliveryDate}
+              onChange={(val) => handleFieldChange(shipment._id, 'deliveryDate', val)}
+              compact={true}
+              isTomorrow={isTomorrow}
+              isToday={isToday}
+              placeholder="DD/MM/YYYY"
+            />
+            {isToday && (
+              <span className="inline-flex items-center text-[10px] font-extrabold uppercase px-1.5 py-0.5 rounded bg-emerald-600 text-white w-fit shadow-xs">
+                Today
+              </span>
+            )}
+            {isTomorrow && (
+              <span className="inline-flex items-center text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-amber-500 text-white w-fit shadow-xs">
+                Tomorrow
+              </span>
+            )}
+            {isPast && (
+              <span className="inline-flex items-center text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-slate-200 text-slate-600 w-fit">
+                Past
+              </span>
+            )}
+          </div>
         </td>
 
-        {/* 8. Warehouse Name (Full width text) */}
-        <td className="py-2.5 px-2.5 w-[19%]">
+        {/* 9. Warehouse Name (Full width text) */}
+        <td className="py-2.5 px-2 w-[16%]">
           <input
             type="text"
             value={activeData.warehouseName}
@@ -273,8 +355,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 9. Boxes (Numbers) */}
-        <td className="py-2.5 px-2 w-[5%] text-right">
+        {/* 10. Boxes (Numbers) */}
+        <td className="py-2.5 px-1.5 w-[5%] text-right">
           <input
             type="number"
             min="0"
@@ -284,8 +366,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 10. Units (Numbers) */}
-        <td className="py-2.5 px-2 w-[5%] text-right">
+        {/* 11. Units (Numbers) */}
+        <td className="py-2.5 px-1.5 w-[5%] text-right">
           <input
             type="number"
             min="0"
@@ -295,8 +377,8 @@ Units: ${activeData.units || 0}`;
           />
         </td>
 
-        {/* 11. Actions: Save & Cancel when modified, or Copy & Delete when normal */}
-        <td className="py-2.5 px-2.5 w-[14%] text-center">
+        {/* 12. Actions: Save & Cancel when modified, or Copy & Delete when normal */}
+        <td className="py-2.5 px-2 w-[13%] text-center">
           {isModified ? (
             /* Save and Cancel buttons in respective row */
             <div className="flex items-center justify-center gap-1.5 animate-in fade-in">
@@ -354,6 +436,39 @@ Units: ${activeData.units || 0}`;
     );
   };
 
+  // Reusable Table Header row
+  const renderTableHeader = (headerBg = 'bg-slate-50', headerTextColor = 'text-slate-700', borderColor = 'border-slate-200') => (
+    <thead>
+      <tr className={`${headerBg} text-[11px] font-bold uppercase tracking-wider ${headerTextColor} border-b ${borderColor}`}>
+        <th className="py-2.5 px-2 w-8 text-center">
+          <button
+            type="button"
+            onClick={onSelectAll}
+            className="text-slate-400 hover:text-slate-700 cursor-pointer"
+            title="Select All"
+          >
+            {selectedIds.length > 0 && selectedIds.length === shipments.length ? (
+              <CheckSquare size={16} className="text-[#ff6b35]" />
+            ) : (
+              <Square size={16} />
+            )}
+          </button>
+        </th>
+        <th className="py-2.5 px-2.5 w-[10%]">RO / PO</th>
+        <th className="py-2.5 px-2 w-[10%]">Company</th>
+        <th className="py-2.5 px-2 w-[9%]">Status</th>
+        <th className="py-2.5 px-2 w-[10%]">Waybill / CN</th>
+        <th className="py-2.5 px-2 w-[10%]">Invoice No</th>
+        <th className="py-2.5 px-2 w-[10%]">Pickup Date (DD/MM/YYYY)</th>
+        <th className="py-2.5 px-2 w-[10%]">Delivery Date (DD/MM/YYYY)</th>
+        <th className="py-2.5 px-2 w-[16%]">Warehouse Name</th>
+        <th className="py-2.5 px-1.5 w-[5%] text-right">Boxes</th>
+        <th className="py-2.5 px-1.5 w-[5%] text-right">Units</th>
+        <th className="py-2.5 px-2 w-[13%] text-center">Actions</th>
+      </tr>
+    </thead>
+  );
+
   return (
     <div className="w-full space-y-6">
       {/* Selected Items Batch Action Bar */}
@@ -372,101 +487,68 @@ Units: ${activeData.units || 0}`;
         </div>
       )}
 
-      {/* SECTION 1: TOMORROW'S DELIVERIES */}
-      {tomorrowList.length > 0 && (
-        <div className="rounded-2xl border border-amber-300 bg-white shadow-xs overflow-hidden w-full">
-          {/* Section Header (without emojis) */}
-          <div className="bg-amber-100/70 px-4 py-3 border-b border-amber-300 flex items-center justify-between">
-            <div className="flex items-center gap-2">
+      {/* SECTION 1: TODAY & TOMORROW'S DELIVERIES (Yellow/Amber container, Today enlisted on top in green) */}
+      {immediateList.length > 0 && (
+        <div className="rounded-2xl border-2 border-amber-300 bg-white shadow-xs overflow-hidden w-full">
+          {/* Section Header */}
+          <div className="bg-amber-100/75 px-4 py-3 border-b border-amber-300 flex items-center justify-between">
+            <div className="flex items-center gap-2.5 flex-wrap">
               <h3 className="text-sm font-bold text-amber-950 font-heading tracking-tight flex items-center gap-2">
-                Tomorrow's Deliveries
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white shadow-xs">
-                  {tomorrowList.length} Due
-                </span>
+                Today & Tomorrow's Deliveries
               </h3>
+              <div className="flex items-center gap-1.5">
+                {todayCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-extrabold bg-emerald-600 text-white shadow-xs">
+                    {todayCount} Today
+                  </span>
+                )}
+                {tomorrowCount > 0 && (
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-500 text-white shadow-xs">
+                    {tomorrowCount} Tomorrow
+                  </span>
+                )}
+              </div>
             </div>
-            <span className="text-xs text-amber-800 font-bold hidden sm:inline">
-              High Priority Dispatches
+            <span className="text-xs text-amber-900 font-bold hidden sm:inline">
+              Immediate High-Priority Dispatches
             </span>
           </div>
 
           <div className="w-full overflow-x-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead>
-                <tr className="bg-amber-50 text-[11px] font-bold uppercase tracking-wider text-amber-900 border-b border-amber-200">
-                  <th className="py-2.5 px-2 w-8 text-center">#</th>
-                  <th className="py-2.5 px-2.5 w-[11%]">RO / PO</th>
-                  <th className="py-2.5 px-2 w-[11%]">Company</th>
-                  <th className="py-2.5 px-2 w-[10%]">Status</th>
-                  <th className="py-2.5 px-2.5 w-[11%]">Waybill / CN</th>
-                  <th className="py-2.5 px-2 w-[11%]">Pickup Date (DD/MM/YYYY)</th>
-                  <th className="py-2.5 px-2 w-[11%]">Delivery Date (DD/MM/YYYY)</th>
-                  <th className="py-2.5 px-2.5 w-[19%]">Warehouse Name</th>
-                  <th className="py-2.5 px-2 w-[5%] text-right">Boxes</th>
-                  <th className="py-2.5 px-2 w-[5%] text-right">Units</th>
-                  <th className="py-2.5 px-2.5 w-[14%] text-center">Actions</th>
-                </tr>
-              </thead>
+              {renderTableHeader('bg-amber-50/90', 'text-amber-950', 'border-amber-200')}
               <tbody>
-                {tomorrowList.map((s) => renderShipmentRow(s, true))}
+                {immediateList.map((s) => renderShipmentRow(s))}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* SECTION 2: ALL OTHER SHIPMENTS */}
+      {/* SECTION 2: UPCOMING SHIPMENTS (Ascending order by nearest date) */}
       <div className="rounded-2xl border border-slate-200 bg-white shadow-xs overflow-hidden w-full">
-        {/* Section Header (without emojis) */}
+        {/* Section Header */}
         <div className="bg-slate-100 px-4 py-3 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <h3 className="text-sm font-bold text-slate-900 font-heading">
-              {tomorrowList.length > 0 ? 'Other Shipments' : 'All Shipments'}
+              {immediateList.length > 0 ? 'Upcoming Shipments' : 'All Shipments'}
               <span className="ml-2 px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
-                {otherList.length}
+                {upcomingList.length}
               </span>
             </h3>
           </div>
           <span className="text-xs text-slate-500 font-medium hidden sm:inline">
-            Standard Dispatches
+            Future Scheduled Dispatches (Ascending Order)
           </span>
         </div>
 
         <div className="w-full overflow-x-auto">
           <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="bg-slate-50 text-[11px] font-bold uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                <th className="py-2.5 px-2 w-8 text-center">
-                  <button
-                    type="button"
-                    onClick={onSelectAll}
-                    className="text-slate-400 hover:text-slate-700 cursor-pointer"
-                    title="Select All"
-                  >
-                    {selectedIds.length > 0 && selectedIds.length === shipments.length ? (
-                      <CheckSquare size={16} className="text-[#ff6b35]" />
-                    ) : (
-                      <Square size={16} />
-                    )}
-                  </button>
-                </th>
-                <th className="py-2.5 px-2.5 w-[11%]">RO / PO</th>
-                <th className="py-2.5 px-2 w-[11%]">Company</th>
-                <th className="py-2.5 px-2 w-[10%]">Status</th>
-                <th className="py-2.5 px-2.5 w-[11%]">Waybill / CN</th>
-                <th className="py-2.5 px-2 w-[11%]">Pickup Date (DD/MM/YYYY)</th>
-                <th className="py-2.5 px-2 w-[11%]">Delivery Date (DD/MM/YYYY)</th>
-                <th className="py-2.5 px-2.5 w-[19%]">Warehouse Name</th>
-                <th className="py-2.5 px-2 w-[5%] text-right">Boxes</th>
-                <th className="py-2.5 px-2 w-[5%] text-right">Units</th>
-                <th className="py-2.5 px-2.5 w-[14%] text-center">Actions</th>
-              </tr>
-            </thead>
-
+            {renderTableHeader('bg-slate-50', 'text-slate-700', 'border-slate-200')}
             <tbody>
-              {otherList.length === 0 && tomorrowList.length === 0 ? (
+              {upcomingList.length === 0 && immediateList.length === 0 && pastList.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-14 text-center text-slate-500">
+                  <td colSpan={12} className="py-14 text-center text-slate-500">
                     <div className="flex flex-col items-center justify-center gap-2">
                       <Package size={32} className="text-slate-300 mb-1" />
                       <p className="text-sm font-bold text-slate-700">No shipments found</p>
@@ -474,8 +556,52 @@ Units: ${activeData.units || 0}`;
                     </div>
                   </td>
                 </tr>
+              ) : upcomingList.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No future upcoming shipments. Check Today & Tomorrow or Past Shipments below.
+                  </td>
+                </tr>
               ) : (
-                otherList.map((s) => renderShipmentRow(s, false))
+                upcomingList.map((s) => renderShipmentRow(s))
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* SECTION 3: PAST DATED SHIPMENTS TABLE (Bottom table in ascending order) */}
+      <div className="rounded-2xl border border-slate-300 bg-white shadow-xs overflow-hidden w-full">
+        {/* Section Header */}
+        <div className="bg-slate-100/90 px-4 py-3 border-b border-slate-300 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="w-5 h-5 rounded-md bg-slate-200 text-slate-600 flex items-center justify-center">
+              <History size={13} />
+            </div>
+            <h3 className="text-sm font-bold text-slate-800 font-heading tracking-tight flex items-center gap-2">
+              Past Dated Shipments
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-700">
+                {pastList.length}
+              </span>
+            </h3>
+          </div>
+          <span className="text-xs text-slate-500 font-medium hidden sm:inline">
+            Passed Date Dispatches (Ascending Order)
+          </span>
+        </div>
+
+        <div className="w-full overflow-x-auto">
+          <table className="w-full text-left text-xs border-collapse">
+            {renderTableHeader('bg-slate-50', 'text-slate-600', 'border-slate-200')}
+            <tbody>
+              {pastList.length === 0 ? (
+                <tr>
+                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs font-medium">
+                    No past dated shipments.
+                  </td>
+                </tr>
+              ) : (
+                pastList.map((s) => renderShipmentRow(s))
               )}
             </tbody>
           </table>

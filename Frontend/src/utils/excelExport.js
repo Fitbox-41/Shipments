@@ -127,6 +127,7 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
     'Company',
     'Status',
     'Waybill / CN',
+    'Invoice No',
     'Pickup Date (DD/MM/YYYY)',
     'Delivery Date (DD/MM/YYYY)',
     'Delivery Priority / Tag',
@@ -179,11 +180,11 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
   // Row 0: Title row
   const titleRow = [
     {
-      v: `FITBOX SPORTS - SHIPMENTS REPORT (Generated: ${formatDateDDMMYYYY(new Date())})`,
+      v: `FITBOX SHIPMENTS DISPATCH REPORT - ${formatDateDDMMYYYY(new Date())}`,
       t: 's',
       s: {
-        font: { name: 'Calibri', sz: 14, bold: true, color: { rgb: 'FF6B35' } },
-        alignment: { horizontal: 'left', vertical: 'center' },
+        font: { name: 'Calibri', sz: 14, bold: true, color: { rgb: '1E293B' } },
+        alignment: { vertical: 'center' },
       },
     },
   ];
@@ -220,6 +221,7 @@ export const exportShipmentsToExcel = (shipments, customFileName = null) => {
       { v: s.company || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: s.status || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: s.waybillNo || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
+      { v: s.invoiceNo || '', t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: formatDateDDMMYYYY(s.pickupDate), t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: formatDateDDMMYYYY(s.deliveryDate), t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },
       { v: tagText, t: 's', s: { ...rowStyle, alignment: { horizontal: 'center' } } },

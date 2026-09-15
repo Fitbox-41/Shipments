@@ -20,6 +20,7 @@ const DateInput = ({
   required = false,
   placeholder = 'DD/MM/YYYY',
   isTomorrow = false,
+  isToday = false,
   className = '',
   compact = false,
 }) => {
@@ -207,7 +208,9 @@ const DateInput = ({
           className={`w-full bg-transparent outline-none font-mono tracking-tight cursor-pointer ${
             compact ? 'text-xs' : 'text-xs font-semibold text-slate-900'
           } ${
-            isTomorrow
+            isToday
+              ? 'text-emerald-900 font-extrabold'
+              : isTomorrow
               ? 'text-amber-900 font-bold'
               : 'text-slate-800'
           }`}
